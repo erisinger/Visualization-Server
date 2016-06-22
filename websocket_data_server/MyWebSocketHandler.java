@@ -19,8 +19,8 @@ import java.io.*;
 
 @WebSocket
 public class MyWebSocketHandler {
-
-    KafkaConsumer<String, String> consumer;
+    private Session session;
+    private KafkaConsumer<String, String> consumer, massConsumer;
 
     @OnWebSocketClose
     public void onClose(int statusCode, String reason) {
@@ -34,12 +34,12 @@ public class MyWebSocketHandler {
 
     @OnWebSocketConnect
     public void onConnect(Session session) throws InterruptedException  {
+        this.session = session;
         System.out.println("Connect: " + session.getRemoteAddress().getAddress());
 //		FileWatcher accelWatcher = new FileWatcher(
 //			new File("/users/erikrisinger/development/accel_flink"), 10);
 //		FileWatcher hrtWatcher = new FileWatcher(
 //					new File("/users/erikrisinger/development/hrt_flink"), 10);
-//
 //		ArrayList<String> recentLines = new ArrayList<>();
 //		String[] split;
 //		accelWatcher.startWatching();
@@ -54,18 +54,38 @@ public class MyWebSocketHandler {
         props.put("session.timeout.ms", "30000");
         props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-        consumer = new KafkaConsumer<>(props);
-        consumer.subscribe(Arrays.asList("sensor-message"));
+        massConsumer = new KafkaConsumer<>(props);
+        massConsumer.subscribe(Arrays.asList("sensor-message"));
 
-        this.streamData(session);
+        this.streamData();
     }
 
     @OnWebSocketMessage
     public void onMessage(String message) {
-        System.out.println("Message: " + message);
+
+        System.out.println(message);
+        Properties props = new Properties();
+
+        String[] split = message.split(",");
+        if (split.length == 2 && "ID".equals(split[0])){
+
+            //kafka consumer code
+            props.put("bootstrap.servers", "localhost:9092,localhost:9093,localhost:9093");
+            props.put("group.id", "test" + System.currentTimeMillis());
+            props.put("enable.auto.commit", "true");
+            props.put("auto.commit.interval.ms", "1000");
+            props.put("session.timeout.ms", "30000");
+            props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+            props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+            consumer = new KafkaConsumer<>(props);
+            consumer.subscribe(Arrays.asList("subject_" + Integer.parseInt(split[1])));
+
+            this.streamData();
+        }
+//        System.out.println("Message: " + message);
     }
 
-    public void streamData(Session session) {
+    public void streamData() {
         String split[];
         long t;
         long latestTime = System.currentTimeMillis();
@@ -76,95 +96,13 @@ public class MyWebSocketHandler {
 
             ConsumerRecords<String, String> records = consumer.poll(100);
             for (ConsumerRecord<String, String> record : records) {
-
                 try {
-                    session.getRemote().sendString(record.value());
+                    this.session.getRemote().sendString(record.value());
 //                    System.out.println(record.value());
-                } catch (Exception e) {
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
-
-//                System.out.printf("offset = %d, key = %s, value = %s\n", record.offset(), record.key(), record.value());
-//                JSONObject jsonOut = new JSONObject();
-//                split = record.value().split(",");
-//
-//                if (split.length == 4) {
-////                    System.out.println("good split: " + split);
-//                    t = Long.parseLong(split[0]);
-////
-//                    if (t > latestTime) {
-//                        latestTime = t;
-//                        x = Double.parseDouble(split[1]);
-//                        y = Double.parseDouble(split[2]);
-//                        z = Double.parseDouble(split[3]);
-//////								y = 0.75*Math.sin(x/10.0) + 0.1*(Math.random()-0.5) ;
-//
-////                        int step = Math.random() > 0.96 ? 0 : -1;
-////                        double step = Math.abs(Math.max(Math.max(x, y), z));
-////                        long now = System.currentTimeMillis();
-//
-////                        if (step >= 15 && now - timeOfLastStep > 500){
-////                            timeOfLastStep = now;
-////                            outString = ("{" + "\"t\":" + t
-////                                    + ", \"s\":" + (x + y + z) / 3
-//////                                    + ", \"s\":" + 0
-////                                    + "}"
-////                            );
-////
-////                        }
-////                        else {
-//                        jsonOut.put("user_id", 0);
-//                        jsonOut.put("device_type", "MS_BAND_1");
-//                        jsonOut.put("t", t);
-//                        jsonOut.put("x", x);
-//                        jsonOut.put("y", y);
-//                        jsonOut.put("z", z);
-//
-//
-////                        String outString;
-////                        outString = ("{"
-////                                + "\"t\":" + t
-////                                + ", \"x\":" + x
-////                                + ", \"y\":" + y
-////                                + ", \"z\":" + z
-////                                + "}" );
-////                        }
-//
-////                        System.out.println("SENDING");
-//                        try {
-//                            session.getRemote().sendString(jsonOut.toJSONString());
-////                            session.getRemote().sendString("length: 4");
-//                        } catch (Exception e) {
-//                            e.printStackTrace();
-//                        }
-////
-////
-////
-//                    }
-//                }
-//                else if (split.length == 2){
-////                    System.out.println("STEP RECEIVED: " + split.toString());
-//                    String outString = "";
-////                        int step = Math.random() > 0.96 ? 0 : -1;
-//                    long now = System.currentTimeMillis();
-//
-//                    if (now - timeOfLastStep > 500){
-//                        timeOfLastStep = now;
-//                        outString = ("{" + "\"t\":" + Long.parseLong(split[0])
-//                                + ", \"s\":" + Double.parseDouble(split[1]) / 3
-//                                + "}"
-//                        );
-//
-//                    }
-//                    try {
-//                        session.getRemote().sendString(outString);
-////                        session.getRemote().sendString("length: 2");
-//                    } catch (Exception e) {
-//                        e.printStackTrace();
-//                    }
-//                }
             }
-//
         }
 
 

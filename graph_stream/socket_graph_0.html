@@ -28,7 +28,7 @@
 	//websocket boilerplate
 	ws.onopen = function() {
 	    console.log("Opened!");
-	    ws.send("Hello Server");
+	    ws.send("ID,0" );
 	};
 	ws.onclose = function() {
 	    console.log("Closed!");
